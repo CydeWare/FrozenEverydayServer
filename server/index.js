@@ -10,6 +10,9 @@ import variantRoutes from "./routes/variant.js";
 import userRoutes from "./routes/users.js";
 import cartRoutes from "./routes/cart.js";
 import orderRoutes from "./routes/order.js";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
