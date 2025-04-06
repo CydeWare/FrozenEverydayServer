@@ -71,6 +71,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+// Express static with aggressive caching
+app.use('/public', express.static('public', {
+  maxAge: '365d',
+  immutable: true, // For versioned filenames (e.g. image-v123.jpg)
+  setHeaders: (res, path) => {
+    if (path.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp');
+    }
+  }
+}));
+
 app.use('/images', express.static(path.join(__dirname, 'public', 'images'), {
   maxAge: '1d', // Cache for 1 day
   etag: true
