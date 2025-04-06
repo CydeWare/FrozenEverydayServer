@@ -288,11 +288,11 @@ const getSortedProducts = async (req, res) => {
         
 
 
-        query = `SELECT * FROM products WHERE Category = ? ORDER BY ${sortBy} ${orderBy} LIMIT ? OFFSET ?`;
+        query = `SELECT * FROM Products WHERE Category = ? ORDER BY ${sortBy} ${orderBy} LIMIT ? OFFSET ?`;
 
       params = [category, limit, offset.toString()];
     } else {
-      query = `SELECT * FROM products ORDER BY ${sortBy} ${orderBy} LIMIT ? OFFSET ?`
+      query = `SELECT * FROM Products ORDER BY ${sortBy} ${orderBy} LIMIT ? OFFSET ?`
 
         params = [limit, offset.toString()];
     }
@@ -304,12 +304,12 @@ const getSortedProducts = async (req, res) => {
     // Get total products count for pagination
     if (category) {
       [[{ total }]] = await db.execute(
-        `SELECT COUNT(*) AS total FROM products WHERE Category = ?`,
+        `SELECT COUNT(*) AS total FROM Products WHERE Category = ?`,
         [category]
       );
     } else {
       [[{ total }]] = await db.execute(
-        `SELECT COUNT(*) AS total FROM products`
+        `SELECT COUNT(*) AS total FROM Products`
       );
     }
     // const totalProducts = countResult[0].total;

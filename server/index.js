@@ -10,9 +10,15 @@ import variantRoutes from "./routes/variant.js";
 import userRoutes from "./routes/users.js";
 import cartRoutes from "./routes/cart.js";
 import orderRoutes from "./routes/order.js";
+import path from "path";
+import fs from "fs";
 import dotenv from "dotenv";
-
+import compression from "compression";
 dotenv.config();
+
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 app.use(cors());
@@ -27,6 +33,10 @@ app.use(function(req, res, next) {
   next();
 });
 
+app.get("/", (req, res) => {
+  res.send("<h1>Welcome to the server!</h1>");
+});
+
 app.use("/products", productRoutes);
 app.use("/files", fileRoutes);
 app.use("/variants", variantRoutes);
@@ -34,8 +44,76 @@ app.use("/user", userRoutes);
 app.use("/cart", cartRoutes);
 app.use("/order", orderRoutes);
 
+const dirs = [
+  path.join(__dirname, 'public'),
+  path.join(__dirname, 'public', 'images'),
+  path.join(__dirname, 'public', 'videos')
+];
+
+dirs.forEach(dir => {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+    console.log(`Created directory: ${dir}`);
+  }
+});
+
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const fileType = file.mimetype.startsWith('video/') ? 'videos' : 'images';
+    cb(null, path.join(__dirname, 'public', fileType));
+  },
+  filename: (req, file, cb) => {
+    // Use timestamp and original extension to avoid name conflicts
+    const fileExt = path.extname(file.originalname);
+    cb(null, `${Date.now()}-${Math.round(Math.random() * 1E9)}${fileExt}`);
+  }
+});
+
+const upload = multer({ storage });
+
+// Express static with aggressive caching
+app.use('/public', express.static('public', {
+  maxAge: '365d',
+  immutable: true, // For versioned filenames (e.g. image-v123.jpg)
+  setHeaders: (res, path) => {
+    if (path.endsWith('.webp')) {
+      res.setHeader('Content-Type', 'image/webp');
+    }
+  }
+}));
+
+
+
+app.use('/images', express.static(path.join(__dirname, 'public', 'images'), {
+  maxAge: '1d', // Cache for 1 day
+  etag: true
+}));
+
+app.use('/images', (req, res, next) => {
+  // Set cache for 1 week
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.setHeader('Vary', 'Accept-Encoding');
+  next();
+});
+
+app.use('/images', compression());
+
+
+
 // ✅ Serve videos publicly (Make the folder accessible)
-app.use("/videos", express.static("uploads/videos"));
+// app.use("/videos", express.static("uploads/videos"));
+
+app.use('/videos', express.static(path.join(__dirname, 'public', 'videos'), {
+  maxAge: '1d',
+  etag: true
+}));
+
+app.get('/public/videos/:file', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.sendFile(`videos/${req.params.file}`, { root: __dirname });
+});
+
 app.use("*", (req, res) => {
   res.end(`<h1>Page not found 404</h1>`)
 })
