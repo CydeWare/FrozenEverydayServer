@@ -13,6 +13,7 @@ import orderRoutes from "./routes/order.js";
 import path from "path";
 import fs from "fs";
 import dotenv from "dotenv";
+import compression from "compression";
 dotenv.config();
 
 import { fileURLToPath } from 'url';
@@ -82,10 +83,21 @@ app.use('/public', express.static('public', {
   }
 }));
 
+
+
 app.use('/images', express.static(path.join(__dirname, 'public', 'images'), {
   maxAge: '1d', // Cache for 1 day
   etag: true
 }));
+
+app.use('/images', (req, res, next) => {
+  // Set cache for 1 week
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.setHeader('Vary', 'Accept-Encoding');
+  next();
+});
+
+app.use('/images', compression());
 
 
 
