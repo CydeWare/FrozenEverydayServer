@@ -96,6 +96,12 @@ app.use('/videos', express.static(path.join(__dirname, 'public', 'videos'), {
   maxAge: '1d',
   etag: true
 }));
+
+app.get('/public/videos/:file', (req, res) => {
+  res.setHeader('Cache-Control', 'public, max-age=604800');
+  res.sendFile(`videos/${req.params.file}`, { root: __dirname });
+});
+
 app.use("*", (req, res) => {
   res.end(`<h1>Page not found 404</h1>`)
 })
