@@ -1,13 +1,17 @@
 import mysql from "mysql2";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const pool = mysql.createPool({
-    host: "localhost",
-    user: "root",
-    password: "idonotknown",
-    database: "frozeneveryday",
+    host: process.env.MYSQLHOST,
+    user: process.env.MYSQLUSER,
+    password: process.env.MYSQLPASSWORD,
+    database: process.env.MYSQLDATABASE,
+    port: process.env.MYSQLPORT, // Railway might use a custom port
     namedPlaceholders: true,
     waitForConnections: true,
-    connectionLimit: 10, // Set a reasonable limit
+    connectionLimit: 10,
     queueLimit: 0,
     connectTimeout: 10000, // 10 seconds timeout
 }).promise();
@@ -16,7 +20,7 @@ const pool = mysql.createPool({
 pool.getConnection()
     .then((conn) => {
         console.log("Connected to MySQL!");
-        conn.release(); // Release the connection back to the pool
+        conn.release();
     })
     .catch((err) => {
         console.error("Error connecting to MySQL:", err);
