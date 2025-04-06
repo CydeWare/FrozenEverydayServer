@@ -93,267 +93,133 @@ const createCartItem = async (req, res) => {
     console.log("User ID From Creating Cart: ", UserID);
 
     // Step 1: Find or Create Cart for User
-    let [cart] = await db.query("SELECT CartID FROM Cart WHERE UserID = ?", [
-      UserID,
-    ]);
+    let [cart] = await db.query("SELECT CartID FROM Cart WHERE UserID = ?", [UserID]);
 
     let CartID;
     if (cart.length === 0) {
       // Create a new cart if it doesn't exist
-      const [rowsID] = await db.execute(
-        "SELECT MAX(CartID) AS maxId FROM Cart"
-      );
-
+      const [rowsID] = await db.execute("SELECT MAX(CartID) AS maxId FROM Cart");
       let maxCartId = rowsID[0]?.maxId;
-
       if (!maxCartId) {
         maxCartId = "CA000";
       }
-
-      CartID =
-        "CA" +
-        (parseInt(maxCartId.substring(2)) + 1).toString().padStart(3, "0");
-
-      const [result] = await db.query(
-        "INSERT INTO Cart (CartID, UserID) VALUES (?, ?)",
-        [CartID, UserID]
-      );
+      
+      CartID = "CA" + (parseInt(maxCartId.substring(2)) + 1).toString().padStart(3, "0");
+      await db.query("INSERT INTO Cart (CartID, UserID) VALUES (?, ?)", [CartID, UserID]);
     } else {
       CartID = cart[0].CartID;
     }
 
     // Step 2: Check if the Product Exists
-    const [product] = await db.query(
-      "SELECT * FROM Products WHERE ProductID = ?",
-      [ProductID]
-    );
+    const [product] = await db.query("SELECT * FROM Products WHERE ProductID = ?", [ProductID]);
     if (product.length === 0) {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    // const Price = product[0].Price;
-    // const Price = productPrice * Quantity;
+    // Step 3: Check if Item Already Exists in Cart or Create New
+    let CartItemID;
+    let isNewItem = false;
 
-    //If there is Variant
-    let result;
-
-    let cartItems;
-
-    if (Variant.length > 0) {
-      let [cartItem] = await db.query(
-        "SELECT * FROM CartItems WHERE CartID = ? AND ProductID = ? AND Variant = ?",
+    if (Variant && Variant.length > 0) {
+      // Check for existing item with the same variant
+      const [existingItem] = await db.query(
+        "SELECT CartItemID FROM CartItems WHERE CartID = ? AND ProductID = ? AND Variant = ?",
         [CartID, ProductID, Variant]
       );
 
-      if (cartItem.length > 0) {
-        // If product already in cart, update quantity
+      if (existingItem.length > 0) {
+        // Update existing item quantity
+        CartItemID = existingItem[0].CartItemID;
         await db.query(
-          "UPDATE CartItems SET Quantity = Quantity + ? WHERE CartID = ? AND ProductID = ? AND Variant = ?",
-          [Quantity, CartID, ProductID, Variant]
-        );
-
-        cartItems = await db.query(
-          `
-              SELECT 
-                ci.CartItemID, 
-                ci.ProductID, 
-                p.Title, 
-                ci.Quantity, 
-                ci.Price, 
-                ci.Variant,
-                f.FileID, 
-                f.FileData 
-              FROM CartItems ci
-              JOIN Products p ON ci.ProductID = p.ProductID
-              LEFT JOIN File f ON ci.ProductID = f.ProductID
-              WHERE ci.CartID = ? AND ci.ProductID = ?
-            `,
-          [CartID, ProductID]
-        );
-
-        result = await db.query(
-          "SELECT * FROM CartItems WHERE CartID = ? AND ProductID = ?",
-          [CartID, ProductID]
+          "UPDATE CartItems SET Quantity = Quantity + ? WHERE CartItemID = ?",
+          [Quantity, CartItemID]
         );
       } else {
-        // If not in cart, add new cart item
-
-        const [rows] = await db.execute(
-          "SELECT MAX(CartItemID) AS maxId FROM CartItems"
-        );
-
+        // Create new cart item with variant
+        isNewItem = true;
+        const [rows] = await db.execute("SELECT MAX(CartItemID) AS maxId FROM CartItems");
         let maxCartItemId = rows[0]?.maxId;
-
         if (!maxCartItemId) {
           maxCartItemId = "CI000";
         }
-
-        const CartItemID =
-          "CI" +
-          (parseInt(maxCartItemId.substring(2)) + 1)
-            .toString()
-            .padStart(3, "0");
-
+        
+        CartItemID = "CI" + (parseInt(maxCartItemId.substring(2)) + 1).toString().padStart(3, "0");
         await db.query(
           "INSERT INTO CartItems (CartItemID, CartID, ProductID, Quantity, Price, Variant) VALUES (?, ?, ?, ?, ?, ?)",
           [CartItemID, CartID, ProductID, Quantity, Price, Variant]
         );
-
-        cartItems = await db.query(
-          `
-              SELECT 
-                ci.CartItemID, 
-                ci.ProductID, 
-                p.Title, 
-                ci.Quantity, 
-                ci.Price, 
-                ci.Variant,
-                f.FileID, 
-                f.FileData 
-              FROM CartItems ci
-              JOIN Products p ON ci.ProductID = p.ProductID
-              LEFT JOIN File f ON ci.ProductID = f.ProductID
-              WHERE ci.CartItemID = ?
-            `,
-          [CartItemID]
-        );
-
-        result = await db.query(
-          "SELECT * FROM CartItems WHERE CartItemID = ?",
-          [CartItemID]
-        );
       }
     } else {
-      let [cartItem] = await db.query(
-        "SELECT * FROM CartItems WHERE CartID = ? AND ProductID = ?",
+      // Check for existing item without variant
+      const [existingItem] = await db.query(
+        "SELECT CartItemID FROM CartItems WHERE CartID = ? AND ProductID = ? AND (Variant IS NULL OR Variant = '')",
         [CartID, ProductID]
       );
 
-      if (cartItem.length > 0) {
-        // If product already in cart, update quantity
+      if (existingItem.length > 0) {
+        // Update existing item quantity
+        CartItemID = existingItem[0].CartItemID;
         await db.query(
-          "UPDATE CartItems SET Quantity = Quantity + ? WHERE CartID = ? AND ProductID = ?",
-          [Quantity, CartID, ProductID]
-        );
-
-        cartItems = await db.query(
-          `
-              SELECT 
-                ci.CartItemID, 
-                ci.ProductID, 
-                p.Title, 
-                ci.Quantity, 
-                ci.Price, 
-                ci.Variant,
-                f.FileID, 
-                f.FileData 
-              FROM CartItems ci
-              JOIN Products p ON ci.ProductID = p.ProductID
-              LEFT JOIN File f ON ci.ProductID = f.ProductID
-              WHERE ci.CartID = ? AND ci.ProductID = ?
-            `,
-          [CartID, ProductID]
-        );
-
-        result = await db.query(
-          "SELECT * FROM CartItems WHERE CartID = ? AND ProductID = ?",
-          [CartID, ProductID]
+          "UPDATE CartItems SET Quantity = Quantity + ? WHERE CartItemID = ?",
+          [Quantity, CartItemID]
         );
       } else {
-        // If not in cart, add new cart item
-
-        const [rows] = await db.execute(
-          "SELECT MAX(CartItemID) AS maxId FROM CartItems"
-        );
-
+        // Create new cart item without variant
+        isNewItem = true;
+        const [rows] = await db.execute("SELECT MAX(CartItemID) AS maxId FROM CartItems");
         let maxCartItemId = rows[0]?.maxId;
-
         if (!maxCartItemId) {
           maxCartItemId = "CI000";
         }
-
-        const CartItemID =
-          "CI" +
-          (parseInt(maxCartItemId.substring(2)) + 1)
-            .toString()
-            .padStart(3, "0");
-
+        
+        CartItemID = "CI" + (parseInt(maxCartItemId.substring(2)) + 1).toString().padStart(3, "0");
         await db.query(
           "INSERT INTO CartItems (CartItemID, CartID, ProductID, Quantity, Price) VALUES (?, ?, ?, ?, ?)",
           [CartItemID, CartID, ProductID, Quantity, Price]
         );
-
-        cartItems = await db.query(
-          `
-              SELECT 
-                ci.CartItemID, 
-                ci.ProductID, 
-                p.Title, 
-                ci.Quantity, 
-                ci.Price, 
-                ci.Variant,
-                f.FileID, 
-                f.FileData 
-              FROM CartItems ci
-              JOIN Products p ON ci.ProductID = p.ProductID
-              LEFT JOIN File f ON ci.ProductID = f.ProductID
-              WHERE ci.CartItemID = ?
-            `,
-          [CartItemID]
-        );
-
-        result = await db.query(
-          "SELECT * FROM CartItems WHERE CartItemID = ?",
-          [CartItemID]
-        );
       }
     }
 
-    // Step 3: Check if Item Already Exists in Cart
+    // Step 4: Get complete cart item data with product info and image
+    const [cartItemData] = await db.query(
+      `SELECT 
+        ci.CartItemID, 
+        ci.ProductID, 
+        p.Title, 
+        ci.Quantity, 
+        ci.Price, 
+        ci.Variant
+      FROM CartItems ci
+      JOIN Products p ON ci.ProductID = p.ProductID
+      WHERE ci.CartItemID = ?`,
+      [CartItemID]
+    );
 
-    cartItems = cartItems[0];
+    if (cartItemData.length === 0) {
+      return res.status(404).json({ message: "Cart item not found after creation" });
+    }
 
-    // console.log("CART CREATED! ", result);
+    // Step 5: Get product images separately
+    const [productImages] = await db.query(
+      `SELECT FileID, FileData 
+       FROM File 
+       WHERE ProductID = ? 
+       ORDER BY FileID ASC`,
+      [ProductID]
+    );
 
-    const cartItemsMap = {};
+    // Step 6: Format the response
+    const result = {
+      ...cartItemData[0],
+      Files: productImages
+    };
 
-    cartItems.forEach((item) => {
-      const {
-        CartItemID,
-        ProductID,
-        Title,
-        Quantity,
-        Price,
-        Variant,
-        FileID,
-        FileData,
-      } = item;
+    console.log("Result AFTER CREATING: ", result);
 
-      if (!cartItemsMap[CartItemID]) {
-        cartItemsMap[CartItemID] = {
-          CartItemID,
-          ProductID,
-          Title,
-          Quantity,
-          Price,
-          Variant,
-          Files: [],
-        };
-      }
-
-      if (FileID) {
-        cartItemsMap[CartItemID].Files.push({ FileID, FileData });
-      }
-    });
-
-    const finalCartItems = Object.values(cartItemsMap);
-
-    console.log("Result AFTER CREATING: ", finalCartItems);
-
-    res.status(200).json(result[0][0]);
+    res.status(200).json(result);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: error });
+    res.status(500).json({ message: error.message });
   }
 };
 
